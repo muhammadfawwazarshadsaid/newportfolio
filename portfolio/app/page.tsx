@@ -4,7 +4,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { BetweenVerticalEnd, ChevronRight, ExpandIcon, GithubIcon, HomeIcon, SectionIcon, TerminalIcon, Twitter } from 'lucide-react'; // Impor ikon yang Anda butuhkan
+import { ArrowUpRight, BetweenVerticalEnd, ChevronDown, ChevronRight, ExpandIcon, GithubIcon, HomeIcon, SectionIcon, TerminalIcon, Twitter } from 'lucide-react'; // Impor ikon yang Anda butuhkan
 import Image from 'next/image';
 import { motion } from 'framer-motion'; // Import motion dari framer-motion untuk animasi utama
 
@@ -20,6 +20,7 @@ import DisplayCards from '@/components/ui/display-cards'; // Komponen kartu Anda
 import { Cover } from '@/components/ui/cover';
 import { Pointer } from '@/components/ui/cursor';
 import AnimatedCursor from '@/components/ui/animated-cursor';
+import { PulsatingButton } from '@/components/magicui/pulsating-button';
 
 // Varian animasi Framer Motion
 const containerVariants = {
@@ -151,7 +152,22 @@ export default function HeroSection() {
                       </div> {/* Akhir flex row */}
                     </div> {/* Akhir max-w container */}
                   </motion.div> {/* Akhir motion container stagger */}
-                </section> {/* Akhir section */}
+          </section> {/* Akhir section */}
+          
+            {/* 2. Container untuk Tombol Animasi */}
+                {/* Container untuk Tombol Animasi */}
+                <div className="relative z-20 flex justify-center -mb-5">
+                        <button
+                            type="button"
+                            className="h-12 ring-sky-500  w-44 text-bold p-2.5 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors duration-200"
+                            aria-label="Scroll down"
+                            onClick={() => document.getElementById('software-section')?.scrollIntoView({ behavior: 'smooth' })}
+                        > See Portfolio
+                            <ArrowUpRight className="h-5 w-5" />
+                        </button>
+                    {/* </PulsatingButton> */}
+                </div>
+
                 {/* Section "Software I Use" dengan Animasi Scroll */}
                 <motion.section
                   className="overflow-hidden pb-16 relative z-10" // Tambah z-index jika perlu
