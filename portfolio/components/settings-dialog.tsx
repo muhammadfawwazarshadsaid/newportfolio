@@ -85,7 +85,7 @@ export function SettingsDialog() {
           <ArrowUpRight className="h-5 w-5 ml-1" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="overflow-hidden p-0 rounded-lg md:max-h-[550px] md:max-w-[700px] lg:max-w-[850px] flex flex-col h-screen md:h-auto">
+      <DialogContent className="overflow-hidden p-0 rounded-lg md:max-h-[550px] md:max-w-[700px] lg:max-w-[850px] mt-8 mb-8 flex flex-col h-screen md:h-auto">
         <DialogTitle className="sr-only">Portofolio</DialogTitle>
         <DialogDescription className="sr-only">Jelajahi proyek dan keahlian saya.</DialogDescription>
 
@@ -97,7 +97,7 @@ export function SettingsDialog() {
              <>
                 {/* Tampilan Mobile */}
                 {isMobile && (
-                  <motion.div className="flex h-full flex-1 flex-col" variants={dialogContainerVariants} initial="hidden" animate="visible">
+                  <motion.div className="flex h-full flex-1 flex-col mb-8 rounded-lg" variants={dialogContainerVariants} initial="hidden" animate="visible">
                      <motion.div variants={dialogItemVariants} className="shrink-0"> {renderHeader()} </motion.div>
                     {!selectedDetail && activeMenu && ( <motion.div className="px-4 pt-4 pb-2 border-b relative shrink-0" variants={dialogItemVariants}> <Button variant="ghost" size="icon" className={cn("absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-background/80 hover:bg-background backdrop-blur-sm transition-opacity duration-300", canScrollLeft ? "opacity-100" : "opacity-0 pointer-events-none")} onClick={() => handleScroll('left')} aria-label="Scroll tabs ke kiri"> <ChevronLeft className="h-5 w-5" /> </Button> <div ref={scrollContainerRef} className="overflow-x-auto whitespace-nowrap pb-2 scrollbar-hide"> <Tabs value={activeMenu} className="w-full inline-block" onValueChange={handleMenuClick}> <TabsList className="flex justify-start"> {portfolioNavData.map((item) => (<TabsTrigger key={item.name} value={item.name} className="flex-shrink-0 rounded-md data-[state=active]:rounded-md">{item.name}</TabsTrigger>))} </TabsList> </Tabs> </div> <Button variant="ghost" size="icon" className={cn("absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-background/80 hover:bg-background backdrop-blur-sm transition-opacity duration-300", canScrollRight ? "opacity-100" : "opacity-0 pointer-events-none")} onClick={() => handleScroll('right')} aria-label="Scroll tabs ke kanan"> <ChevronRight className="h-5 w-5" /> </Button> </motion.div> )}
                      <motion.div className="flex-1 overflow-y-auto min-h-0" variants={dialogItemVariants}> {renderContent()} </motion.div>
