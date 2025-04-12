@@ -32,7 +32,6 @@ export default function RootLayout({
             geistSans.variable, // Font variable class
             geistMono.variable, // Font variable class
             "bg-background",
-            "bg-[url('/bg.png')]",
             "bg-cover bg-center bg-no-repeat",
             "min-h-screen"
             // "bg-fixed" // Optional
