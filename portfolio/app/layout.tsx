@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { cn } from "@/lib/utils";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,9 +26,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+        // Correct cn usage
+        className={cn(
+            "antialiased", // Static base class
+            geistSans.variable, // Font variable class
+            geistMono.variable, // Font variable class
+            "bg-background",
+            "bg-[url('/bg.png')]",
+            "bg-cover bg-center bg-no-repeat",
+            "min-h-screen"
+            // "bg-fixed" // Optional
+        )}>
+        {children} {/* Konten halaman (termasuk HeroSection) akan dirender di sini */}
       </body>
     </html>
   );
