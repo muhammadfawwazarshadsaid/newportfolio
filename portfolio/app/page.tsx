@@ -46,7 +46,7 @@ export default function HeroSection() {
 
   // Fetch Data Kategori
   React.useEffect(() => {
-    const fetchCategoryData = async () => { setIsLoadingCards(true); setErrorCards(null); try { const supabase = createClient(); const { data: categories, error: catError } = await supabase.from('categories').select('id, name, icon_name').order('name').limit(3); if (catError) throw catError; if (!categories) throw new Error("No categories found"); const { data: allProjects, error: projErrorAlt } = await supabase.from('projects').select('category_id'); if (projErrorAlt) throw projErrorAlt; if (!allProjects) throw new Error("Could not fetch projects"); const transformedCards = categories.map((category: Pick<CategoryFromDB, 'id'|'name'|'icon_name'>, index) => { const classIndex = index % cardStackClasses.length; const IconComponent = iconMap[category.icon_name] || DefaultIcon; const projectCount = allProjects.filter(p => p.category_id === category.id).length; return { icon: <IconComponent className="size-4 text-sky-300"/>, title: category.name, description: `${projectCount} Proyek Tersedia`, iconClassName: "text-sky-500 bg-sky-700", titleClassName: "text-sky-500", className: cardStackClasses[classIndex] }; }); setDisplayCardData(transformedCards); } catch (err: any) { console.error("Error fetching category data for cards:", err); setErrorCards(err.message || "Gagal memuat kategori."); } finally { setIsLoadingCards(false); } };
+    const fetchCategoryData = async () => { setIsLoadingCards(true); setErrorCards(null); try { const supabase = createClient(); const { data: categories, error: catError } = await supabase.from('categories').select('id, name, icon_name').order('name').limit(3); if (catError) throw catError; if (!categories) throw new Error("No categories found"); const { data: allProjects, error: projErrorAlt } = await supabase.from('projects').select('category_id'); if (projErrorAlt) throw projErrorAlt; if (!allProjects) throw new Error("Could not fetch projects"); const transformedCards = categories.map((category: Pick<CategoryFromDB, 'id'|'name'|'icon_name'>, index) => { const classIndex = index % cardStackClasses.length; const IconComponent = iconMap[category.icon_name] || DefaultIcon; const projectCount = allProjects.filter(p => p.category_id === category.id).length; return { icon: <IconComponent className="size-4 text-sky-300"/>, title: category.name, description: `${projectCount} Proyek Berjalan`, iconClassName: "text-sky-500 bg-sky-700", titleClassName: "text-sky-500", className: cardStackClasses[classIndex] }; }); setDisplayCardData(transformedCards); } catch (err: any) { console.error("Error fetching category data for cards:", err); setErrorCards(err.message || "Gagal memuat kategori."); } finally { setIsLoadingCards(false); } };
     fetchCategoryData();
   }, []);
 
@@ -56,6 +56,38 @@ export default function HeroSection() {
     fetchActiveCvUrl();
   }, []);
 
+
+  // <<< State untuk menyimpan daftar logo >>>
+  const [logoFiles, setLogoFiles] = React.useState<string[]>([]);
+  const [isLoadingLogos, setIsLoadingLogos] = React.useState(true);
+  // <<< -------------------------------- >>>
+
+  // <<< Fetch daftar logo dari API Route >>>
+  React.useEffect(() => {
+    const fetchLogos = async () => {
+      setIsLoadingLogos(true);
+      try {
+        const response = await fetch('/api/logos'); // Panggil API route
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        if (Array.isArray(data)) {
+            setLogoFiles(data);
+        } else {
+             throw new Error("Invalid data format received from API");
+        }
+      } catch (error) {
+        console.error("Failed to fetch logos:", error);
+        // Handle error jika perlu (misal tampilkan pesan)
+      } finally {
+        setIsLoadingLogos(false);
+      }
+    };
+
+    fetchLogos();
+  }, []); // Jalankan sekali saat mount
+  // <<< ----------------------------- >>>
 
     return (
         <>
@@ -83,8 +115,60 @@ export default function HeroSection() {
                     </div>
                   </motion.div>
                 </section>
-                 <motion.section className="overflow-hidden pb-16 relative z-10" initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.2 }} transition={{ duration: 0.8, ease: "easeOut" }}> <div className="group relative m-auto max-w-7xl mt-12 px-6"> <div className="flex flex-col items-center md:flex-row"> <div className="md:max-w-44 md:border-r md:border-neutral-200 dark:md:border-neutral-700 md:pr-6"> <p className="text-end text-sm mt-2 text-neutral-600 dark:text-neutral-400">Software I Use</p> </div> <div className="relative py-6 mt-8 md:mt-0 md:w-[calc(100%-11rem)]"> <InfiniteSlider speedOnHover={20} speed={40} gap={112}> <div className="flex"><img className="mx-auto h-5 w-fit dark:invert" src="https://html.tailus.io/blocks/customers/nvidia.svg" alt="Nvidia Logo" height="20" width="auto"/></div> <div className="flex"><img className="mx-auto h-4 w-fit dark:invert" src="https://html.tailus.io/blocks/customers/column.svg" alt="Column Logo" height="16" width="auto"/></div> <div className="flex"><img className="mx-auto h-4 w-fit dark:invert" src="https://html.tailus.io/blocks/customers/github.svg" alt="GitHub Logo" height="16" width="auto"/></div> <div className="flex"><img className="mx-auto h-5 w-fit dark:invert" src="https://html.tailus.io/blocks/customers/nike.svg" alt="Nike Logo" height="20" width="auto"/></div> <div className="flex"><img className="mx-auto h-5 w-fit dark:invert" src="https://html.tailus.io/blocks/customers/lemonsqueezy.svg" alt="Lemon Squeezy Logo" height="20" width="auto"/></div> <div className="flex"><img className="mx-auto h-4 w-fit dark:invert" src="https://html.tailus.io/blocks/customers/laravel.svg" alt="Laravel Logo" height="16" width="auto"/></div> <div className="flex"><img className="mx-auto h-7 w-fit dark:invert" src="https://html.tailus.io/blocks/customers/lilly.svg" alt="Lilly Logo" height="28" width="auto"/></div> <div className="flex"><img className="mx-auto h-6 w-fit dark:invert" src="https://html.tailus.io/blocks/customers/openai.svg" alt="OpenAI Logo" height="24" width="auto"/></div> </InfiniteSlider> <div className="absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-background to-transparent pointer-events-none"></div> <div className="absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-background to-transparent pointer-events-none"></div> <ProgressiveBlur className="pointer-events-none absolute left-0 top-0 h-full w-20" direction="left" blurIntensity={1}/> <ProgressiveBlur className="pointer-events-none absolute right-0 top-0 h-full w-20" direction="right" blurIntensity={1}/> </div> </div> </div> </motion.section>
-            </main>
+                 {/* Section "Software I Use" dengan Logo Dinamis */}
+                <motion.section
+                  className="overflow-hidden pb-16 relative z-10"
+                  initial={{ opacity: 0, y: 50 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.2 }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
+                >
+                  <div className="group relative m-auto max-w-7xl mt-12 px-6">
+                      <div className="flex flex-col items-center md:flex-row">
+                          <div className="md:max-w-44 md:border-r md:border-neutral-200 dark:md:border-neutral-700 md:pr-6">
+                              <p className="text-end text-sm mt-2 text-neutral-600 dark:text-neutral-400">Software I Use</p>
+                          </div>
+                          <div className="relative py-6 mt-8 md:mt-0 md:w-[calc(100%-11rem)] min-h-[50px]"> {/* Beri min-height */}
+                              {/* Tampilkan loading skeleton jika perlu */}
+                              {isLoadingLogos && (
+                                  <div className="flex justify-center items-center h-full">
+                                      <Skeleton className="h-8 w-3/4" />
+                                  </div>
+                              )}
+                              {/* Render InfiniteSlider jika logo sudah ada */}
+                              {!isLoadingLogos && logoFiles.length > 0 && (
+                                  <InfiniteSlider speedOnHover={20} speed={40} gap={112}>
+                                      {/* === Loop melalui logoFiles === */}
+                                      {logoFiles.map((filename) => (
+                                          <div key={filename} className="flex items-center justify-center h-10"> {/* Atur tinggi konsisten */}
+                                              {/* Gunakan komponen Image Next.js */}
+                                              <Image
+                                                  className="mx-auto h-6 w-auto dark:invert object-contain" // Sesuaikan h- (tinggi) sesuai kebutuhan
+                                                  src={`/logo/${filename}`} // Path relatif ke folder public/logo
+                                                  alt={`${filename.split('.')[0]} Logo`} // Ambil nama file tanpa ekstensi sbg alt
+                                                  height={24} // Berikan height (atau width) untuk optimasi
+                                                  width={100} // Berikan width (atau height) - sesuaikan rasio
+                                                  unoptimized={filename.endsWith('.svg')} // Nonaktifkan optimasi untuk SVG jika perlu
+                                              />
+                                          </div>
+                                      ))}
+                                      {/* === Akhir Loop === */}
+                                  </InfiniteSlider>
+                              )}
+                               {!isLoadingLogos && logoFiles.length === 0 && (
+                                  <p className="text-center text-muted-foreground">No logos found.</p>
+                               )}
+
+                              {/* Efek blur di tepi slider */}
+                              <div className="absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-background to-transparent pointer-events-none"></div>
+                              <div className="absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-background to-transparent pointer-events-none"></div>
+                              <ProgressiveBlur className="pointer-events-none absolute left-0 top-0 h-full w-20" direction="left" blurIntensity={1}/>
+                              <ProgressiveBlur className="pointer-events-none absolute right-0 top-0 h-full w-20" direction="right" blurIntensity={1}/>
+                          </div>
+                      </div>
+                  </div>
+              </motion.section>
+        </main>
         </>
     );
 }

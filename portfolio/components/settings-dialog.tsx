@@ -81,7 +81,7 @@ export function SettingsDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="default" className="h-12 w-44 rounded-full" aria-label="Lihat Portofolio">
-          Lihat Portofolio
+          See Portfolio
           <ArrowUpRight className="h-5 w-5 ml-1" />
         </Button>
       </DialogTrigger>
