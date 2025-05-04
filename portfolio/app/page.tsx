@@ -67,26 +67,31 @@ export default function HeroSection() {
     const fetchLogos = async () => {
       setIsLoadingLogos(true);
       try {
-        const response = await fetch('/api/logos'); // Panggil API route
+        const response = await fetch('/api/logos');
+        console.log("API Response Status:", response.status); // <-- Log status
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
+        console.log("Fetched Logo Data (Raw):", data); // <-- Log data mentah
         if (Array.isArray(data)) {
+            console.log(`Received ${data.length} logos from API. Setting state...`); // <-- Log jumlah sebelum set state
             setLogoFiles(data);
         } else {
              throw new Error("Invalid data format received from API");
         }
       } catch (error) {
         console.error("Failed to fetch logos:", error);
-        // Handle error jika perlu (misal tampilkan pesan)
       } finally {
         setIsLoadingLogos(false);
       }
     };
 
     fetchLogos();
-  }, []); // Jalankan sekali saat mount
+  }, []);
+
+  // Tambahkan log ini juga di dalam body komponen HeroSection sebelum return
+  console.log("Current logoFiles state:", logoFiles);
   // <<< ----------------------------- >>>
 
     return (
@@ -137,24 +142,27 @@ export default function HeroSection() {
                               )}
                               {/* Render InfiniteSlider jika logo sudah ada */}
                               {!isLoadingLogos && logoFiles.length > 0 && (
-                                  <InfiniteSlider speedOnHover={20} speed={40} gap={112}>
-                                      {/* === Loop melalui logoFiles === */}
-                                      {logoFiles.map((filename) => (
-                                          <div key={filename} className="flex items-center justify-center h-10"> {/* Atur tinggi konsisten */}
-                                              {/* Gunakan komponen Image Next.js */}
-                                              <Image
-                                                  className="mx-auto h-6 w-auto dark:invert object-contain" // Sesuaikan h- (tinggi) sesuai kebutuhan
-                                                  src={`/logo/${filename}`} // Path relatif ke folder public/logo
-                                                  alt={`${filename.split('.')[0]} Logo`} // Ambil nama file tanpa ekstensi sbg alt
-                                                  height={24} // Berikan height (atau width) untuk optimasi
-                                                  width={100} // Berikan width (atau height) - sesuaikan rasio
-                                                  unoptimized={filename.endsWith('.svg')} // Nonaktifkan optimasi untuk SVG jika perlu
-                                              />
-                                          </div>
-                                      ))}
-                                      {/* === Akhir Loop === */}
-                                  </InfiniteSlider>
-                              )}
+                              <InfiniteSlider speedOnHover={20} speed={40} gap={112}>
+                                  {/* === Loop melalui logoFiles === */}
+                                  {logoFiles.map((filename) => (
+                                      // Tingkatkan tinggi container misal jadi h-14 (56px) untuk memberi ruang
+                                      <div key={filename} className="flex items-center justify-center h-14">
+                                          <Image
+                                              // Ganti h-6 jadi h-10 (tinggi 40px)
+                                              className="mx-auto h-10 w-auto dark:invert object-contain"
+                                              src={`/logo/${filename}`}
+                                              alt={`${filename.split('.')[0]} Logo`}
+                                              // Sesuaikan properti height jadi 40
+                                              height={40}
+                                              // Biarkan width 100 atau naikkan sedikit misal 150 (w-auto akan menyesuaikan)
+                                              width={150}
+                                              unoptimized={filename.endsWith('.svg')}
+                                          />
+                                      </div>
+                                  ))}
+                                  {/* === Akhir Loop === */}
+                              </InfiniteSlider>
+                          )}
                                {!isLoadingLogos && logoFiles.length === 0 && (
                                   <p className="text-center text-muted-foreground">No logos found.</p>
                                )}

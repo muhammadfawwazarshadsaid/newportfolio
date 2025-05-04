@@ -7,7 +7,7 @@ export async function GET() {
   // Tentukan path absolut ke direktori public/logo
   // process.cwd() memberikan root direktori proyek Anda
     //   const logoDirectory = path.join(process.cwd(), 'public', 'logo');
-    const logoDirectory = './public/logo';
+    const logoDirectory = path.join(process.cwd(), 'public', 'logo');
 
   try {
     // Baca isi direktori
