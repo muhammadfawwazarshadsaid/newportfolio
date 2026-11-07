@@ -62,6 +62,11 @@ export default function PortfolioAdminPage() {
     const [newCategory, setNewCategory] = useState({ name: '', icon_name: '', content: '', order: 0 });
     const [newProject, setNewProject] = useState({ title: '', description: '', tags: '', link_url: '', category_id: '', order: 0 });
     const [newProjectFiles, setNewProjectFiles] = useState<FileList | null>(null);
+    const [newProjectVideo, setNewProjectVideo] = useState<File | null>(null);
+    const [editProjectVideo, setEditProjectVideo] = useState<File | null>(null);
+    const [removeVideo, setRemoveVideo] = useState(false);
+    const newProjectVideoInputRef = useRef<HTMLInputElement>(null);
+    const editProjectVideoInputRef = useRef<HTMLInputElement>(null);
     const [selectedCvFile, setSelectedCvFile] = useState<File | null>(null);
     const [isUploadingCv, setIsUploadingCv] = useState(false);
     const [editingCategory, setEditingCategory] = useState<CategoryFromDB | null>(null);
@@ -88,14 +93,31 @@ export default function PortfolioAdminPage() {
 
     // --- Handler Buka Dialog Edit ---
     const openEditCategoryDialog=(e:CategoryFromDB)=>{setEditingCategory({...e});setIsCategoryDialogOpen(!0)};
-    const openEditProjectDialog=(e:ProjectFromDB)=>{const{categories:a,category_name:o,...r}=e;setEditingProject({...r,tags:(e.tags||[]).join(", "),image_urls:e.image_urls||[]});setEditProjectFiles(null);setImagesToRemove([]);/*<<< Reset imagesToRemove*/setIsProjectDialogOpen(!0)};
+    const openEditProjectDialog=(e:ProjectFromDB)=>{const{categories:a,category_name:o,...r}=e;setEditingProject({...r,tags:(e.tags||[]).join(", "),image_urls:e.image_urls||[]});setEditProjectFiles(null);setImagesToRemove([]);/*<<< Reset imagesToRemove*/setEditProjectVideo(null);setRemoveVideo(false);setIsProjectDialogOpen(!0)};
 
     // --- Fungsi Helper Upload Gambar Proyek ---
     const uploadProjectImages = async (files: FileList): Promise<string[]> => { const uploadedUrls: string[] = []; try { for (const file of Array.from(files)) { const fileExt = file.name.split('.').pop()?.toLowerCase(); const uniqueFileName = `project_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`; const filePath = uniqueFileName; toast.info(`Mengupload ${file.name}...`); const { data, error } = await supabase.storage.from(PROJECT_IMAGE_BUCKET_NAME).upload(filePath, file, { cacheControl: '3600', upsert: false }); if (error) { console.error(`Error uploading ${file.name}:`, error); toast.error(`Gagal upload ${file.name}: ${error.message}`); continue; } if (data?.path) { const { data: urlData } = supabase.storage.from(PROJECT_IMAGE_BUCKET_NAME).getPublicUrl(data.path); if (urlData?.publicUrl) { uploadedUrls.push(urlData.publicUrl); } else { console.error(`Could not get public URL for ${data.path}`); toast.error(`Gagal mendapatkan URL publik untuk ${file.name}`); } } else { throw new Error(`Upload data path not returned for ${file.name}.`);} } } catch (uploadError) { console.error("General error during project image uploads:", uploadError); toast.error("Terjadi kesalahan saat mengupload gambar proyek."); } return uploadedUrls; };
 
+    // --- Upload video proyek (bucket sama dengan gambar). Batas Supabase free: 50MB/file ---
+    const MAX_VIDEO_MB = 50;
+    const uploadProjectVideo = async (file: File): Promise<string | null> => {
+        if (file.size > MAX_VIDEO_MB * 1024 * 1024) { toast.error(`Video ${file.name} lebih dari ${MAX_VIDEO_MB}MB. Kompres dulu.`); return null; }
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'mp4';
+        const path = `video_${Date.now()}_${Math.random().toString(36).substring(2)}.${ext}`;
+        toast.info(`Mengupload video ${file.name}...`);
+        const { data, error } = await supabase.storage.from(PROJECT_IMAGE_BUCKET_NAME).upload(path, file, { cacheControl: '31536000', upsert: false, contentType: file.type || 'video/mp4' });
+        if (error || !data?.path) { toast.error(`Gagal upload video: ${error?.message ?? 'path kosong'}`); return null; }
+        return supabase.storage.from(PROJECT_IMAGE_BUCKET_NAME).getPublicUrl(data.path).data?.publicUrl ?? null;
+    };
+    const removeStoredFile = async (url: string | null | undefined) => {
+        if (!url) return;
+        const path = getStoragePathFromUrl(PROJECT_IMAGE_BUCKET_NAME, url);
+        if (path) await supabase.storage.from(PROJECT_IMAGE_BUCKET_NAME).remove([path]);
+    };
+
     // --- Handler Submit Form ---
     const handleAddCategory = async (e: FormEvent) => { e.preventDefault();if(!newCategory.name||!newCategory.icon_name){toast.error("Nama Kategori dan Nama Ikon wajib diisi!");return;}setIsProcessing(true); const{error}=await supabase.from('categories').insert([{name:newCategory.name,icon_name:newCategory.icon_name,content:newCategory.content||null, order: newCategory.order || null}]).select();if(error){toast.error("Gagal: "+error.message);console.error(error);}else{toast.success(`Kategori "${newCategory.name}" ditambahkan.`);setNewCategory({name:'',icon_name:'',content:'', order: 0});fetchData(false);}setIsProcessing(false); };
-    const handleAddProject = async (e: FormEvent) => { e.preventDefault(); if (!newProject.title || !newProject.category_id) { toast.error("Judul Proyek dan Kategori wajib diisi!"); return; } if (!newProjectFiles || newProjectFiles.length === 0) { toast.error("Pilih minimal satu gambar proyek."); return; } setIsProcessing(true); let uploadedImageUrls: string[] = []; try { uploadedImageUrls = await uploadProjectImages(newProjectFiles); if (uploadedImageUrls.length === 0 && newProjectFiles.length > 0) throw new Error("Tidak ada gambar yang berhasil diupload."); const tagsArray = newProject.tags.split(',').map(tag => tag.trim()).filter(tag => tag); const projectToInsert = { title: newProject.title, description: newProject.description || null, tags: tagsArray.length > 0 ? tagsArray : null, link_url: newProject.link_url || null, image_urls: uploadedImageUrls, category_id: newProject.category_id, order: newProject.order || null }; const { error } = await supabase.from('projects').insert([projectToInsert]).select(); if (error) throw error; toast.success(`Proyek "${newProject.title}" berhasil ditambahkan!`); setNewProject({ title: '', description: '', tags: '', link_url: '', category_id: '', order: 0 }); setNewProjectFiles(null); if (newProjectFileInputRef.current) newProjectFileInputRef.current.value = ''; fetchData(false); } catch (error: any) { console.error("Error adding project:", error); toast.error("Gagal menambahkan proyek: " + error.message); if (uploadedImageUrls.length > 0) { console.error("Attempting cleanup for failed project add..."); try { const pathsToRemove = uploadedImageUrls.map(url => getStoragePathFromUrl(PROJECT_IMAGE_BUCKET_NAME, url)).filter((p): p is string => p !== null); if(pathsToRemove.length > 0) await supabase.storage.from(PROJECT_IMAGE_BUCKET_NAME).remove(pathsToRemove); } catch (cleanupError){ console.error("Cleanup failed", cleanupError)} } } finally { setIsProcessing(false); } };
+    const handleAddProject = async (e: FormEvent) => { e.preventDefault(); if (!newProject.title || !newProject.category_id) { toast.error("Judul Proyek dan Kategori wajib diisi!"); return; } if (!newProjectFiles || newProjectFiles.length === 0) { toast.error("Pilih minimal satu gambar proyek."); return; } setIsProcessing(true); let uploadedImageUrls: string[] = []; let uploadedVideoUrl: string | null = null; try { uploadedImageUrls = await uploadProjectImages(newProjectFiles); if (uploadedImageUrls.length === 0 && newProjectFiles.length > 0) throw new Error("Tidak ada gambar yang berhasil diupload."); if (newProjectVideo) { uploadedVideoUrl = await uploadProjectVideo(newProjectVideo); if (!uploadedVideoUrl) throw new Error("Video gagal diupload."); } const tagsArray = newProject.tags.split(',').map(tag => tag.trim()).filter(tag => tag); const projectToInsert = { title: newProject.title, description: newProject.description || null, tags: tagsArray.length > 0 ? tagsArray : null, link_url: newProject.link_url || null, image_urls: uploadedImageUrls, video_url: uploadedVideoUrl, category_id: newProject.category_id, order: newProject.order || null }; const { error } = await supabase.from('projects').insert([projectToInsert]).select(); if (error) throw error; toast.success(`Proyek "${newProject.title}" berhasil ditambahkan!`); setNewProject({ title: '', description: '', tags: '', link_url: '', category_id: '', order: 0 }); setNewProjectFiles(null); if (newProjectFileInputRef.current) newProjectFileInputRef.current.value = ''; setNewProjectVideo(null); if (newProjectVideoInputRef.current) newProjectVideoInputRef.current.value = ''; fetchData(false); } catch (error: any) { console.error("Error adding project:", error); toast.error("Gagal menambahkan proyek: " + error.message); await removeStoredFile(uploadedVideoUrl); if (uploadedImageUrls.length > 0) { console.error("Attempting cleanup for failed project add..."); try { const pathsToRemove = uploadedImageUrls.map(url => getStoragePathFromUrl(PROJECT_IMAGE_BUCKET_NAME, url)).filter((p): p is string => p !== null); if(pathsToRemove.length > 0) await supabase.storage.from(PROJECT_IMAGE_BUCKET_NAME).remove(pathsToRemove); } catch (cleanupError){ console.error("Cleanup failed", cleanupError)} } } finally { setIsProcessing(false); } };
     const handleUploadCv = async (e: FormEvent) => { e.preventDefault(); if (!selectedCvFile) { toast.error("Pilih file CV."); return; } console.log("Attempting upload for file:", { name: selectedCvFile.name, size: selectedCvFile.size, type: selectedCvFile.type, }); setIsUploadingCv(true); toast.info("Mengupload CV..."); let step = "start"; try { step = "preparing path"; const fileExt = selectedCvFile.name.split('.').pop(); const uniqueFileName = `cv_${Date.now()}_${selectedCvFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`; const filePath = uniqueFileName; console.log(`Uploading to bucket '${CV_BUCKET_NAME}' with path:`, filePath); step = "storage.upload"; const { data: uploadData, error: uploadError } = await supabase.storage.from(CV_BUCKET_NAME).upload(filePath, selectedCvFile, { cacheControl: '3600', upsert: false }); console.log("Storage upload result:", { uploadData, uploadError }); if (uploadError) throw uploadError; if (!uploadData?.path) throw new Error("Upload path not returned from storage."); step = "storage.getPublicUrl"; const { data: urlData } = supabase.storage.from(CV_BUCKET_NAME).getPublicUrl(uploadData.path); console.log("Public URL result:", { urlData }); if (!urlData?.publicUrl) throw new Error("Could not get public URL."); step = "db.insert"; const { error: insertError } = await supabase.from('cvs').insert([{ file_name: selectedCvFile.name, storage_path: uploadData.path, public_url: urlData.publicUrl, is_active: false }]); console.log("DB insert result:", { insertError }); if (insertError) throw insertError; step = "success"; toast.success(`CV "${selectedCvFile.name}" berhasil diupload!`); setSelectedCvFile(null); if (cvFileInputRef.current) cvFileInputRef.current.value = ''; fetchData(false); } catch (err: any) { console.error(`Error during step: ${step}.`); let displayError = `Error during ${step}. Check console.`; if(err){if(typeof err.message==='string'&&err.message){displayError=err.message;}else if(typeof err.error_description==='string'&&err.error_description){displayError=err.error_description;}else if(typeof err.error==='string'&&err.error){displayError=err.error;}else if(typeof err.details==='string'&&err.details){displayError=err.details;}else if(typeof err.status==='number'){displayError=`Request failed with status ${err.status}. Policy/Bucket issue?`;}else if(typeof err==='object'){try{displayError=JSON.stringify(err);}catch(e){}}else if(typeof err==='string'&&err){displayError=err;}} toast.error("Gagal mengupload CV: " + displayError); } finally { setIsUploadingCv(false); } };
 
     // --- Handler Update ---
@@ -118,6 +140,15 @@ export default function PortfolioAdminPage() {
                 toast.info("Gambar baru selesai diupload.");
             }
 
+            // 1b. Video: upload baru kalau dipilih, hapus kalau ditandai
+            let newVideoUrl: string | null = null;
+            if (editProjectVideo) {
+                newVideoUrl = await uploadProjectVideo(editProjectVideo);
+                if (!newVideoUrl) throw new Error("Video gagal diupload.");
+            }
+            const oldVideoUrl = editingProject.video_url ?? null;
+            const finalVideoUrl = newVideoUrl ?? (removeVideo ? null : oldVideoUrl);
+
             // 2. Tentukan URL final untuk database
             const keptImageUrls = (editingProject.image_urls || []).filter(url => !imagesToRemove.includes(url));
             const finalImageUrls = [...keptImageUrls, ...newlyUploadedUrls];
@@ -130,6 +161,7 @@ export default function PortfolioAdminPage() {
                 tags: tagsArray.length > 0 ? tagsArray : null,
                 link_url: editingProject.link_url || null,
                 image_urls: finalImageUrls.length > 0 ? finalImageUrls : null,
+                video_url: finalVideoUrl,
                 category_id: editingProject.category_id,
                 order: editingProject.order || null
             };
@@ -137,6 +169,8 @@ export default function PortfolioAdminPage() {
             // 4. Update DB
             const { error: dbUpdateError } = await supabase.from('projects').update(projectToUpdate).eq('id', editingProject.id);
             if (dbUpdateError) throw dbUpdateError;
+
+            if (oldVideoUrl && finalVideoUrl !== oldVideoUrl) await removeStoredFile(oldVideoUrl);
 
             // 5. Hapus gambar lama dari Storage SETELAH DB sukses
             if (imagesToRemove.length > 0) {
@@ -159,6 +193,7 @@ export default function PortfolioAdminPage() {
 
             // Sukses Total
             toast.success(`Proyek "${editingProject.title}" berhasil diperbarui!`);
+            setEditProjectVideo(null); setRemoveVideo(false); if (editProjectVideoInputRef.current) editProjectVideoInputRef.current.value = '';
             setIsProjectDialogOpen(false); setEditingProject(null); setEditProjectFiles(null); setImagesToRemove([]);
             if (editProjectFileInputRef.current) editProjectFileInputRef.current.value = '';
             fetchData(false);
@@ -169,6 +204,7 @@ export default function PortfolioAdminPage() {
              // Rollback? Jika upload baru sudah terjadi tapi DB gagal.
              // Untuk simpel, kita tidak rollback storage di sini.
              if (newlyUploadedUrls.length > 0) { /* ... logika cleanup jika perlu ... */ }
+             if (editProjectVideo) { /* video baru mungkin sudah terupload; dibiarkan, aman */ }
         } finally {
             setIsProcessing(false);
         }
@@ -199,6 +235,7 @@ export default function PortfolioAdminPage() {
                          else { toast.info("Gambar terkait dihapus."); }
                      }
                 }
+                await removeStoredFile(projectToDelete.video_url);
                 const { error: dbError } = await supabase.from('projects').delete().eq('id', id);
                 if (dbError) throw dbError;
                 toast.success(`Proyek "${title}" berhasil dihapus.`);
@@ -243,7 +280,7 @@ export default function PortfolioAdminPage() {
                 <h2 className="text-2xl font-semibold border-b pb-2">Projects</h2>
                 {/* Form Tambah Proyek */}
                 <form onSubmit={handleAddProject} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start p-3 bg-muted/50 rounded-md"> <div className="space-y-3"> <div> <label htmlFor="project-title" className="block text-sm font-medium mb-1">Judul Proyek*</label> <Input id="project-title" name="title" value={newProject.title} onChange={handleProjectChange} placeholder="Judul Proyek Keren" required /> </div> <div> <label htmlFor="project-category" className="block text-sm font-medium mb-1">Kategori*</label> <Select name="category_id" onValueChange={handleCategorySelect} value={newProject.category_id} required> <SelectTrigger id="project-category"><SelectValue placeholder="Pilih Kategori"/></SelectTrigger> <SelectContent>{categories.map(cat=>(<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}</SelectContent> </Select> </div> <div> <label htmlFor="project-order" className="block text-sm font-medium mb-1">Urutan</label> <Input id="project-order" name="order" type="number" value={newProject.order} onChange={handleProjectChange} placeholder="10" /> </div> </div> <div className="space-y-3"> <div> <label htmlFor="project-desc" className="block text-sm font-medium mb-1">Deskripsi</label> <Textarea id="project-desc" name="description" value={newProject.description} onChange={handleProjectChange} placeholder="Deskripsi singkat proyek..." /> </div> <div> <label htmlFor="project-link" className="block text-sm font-medium mb-1">URL Tautan</label> <Input id="project-link" name="link_url" type="url" value={newProject.link_url} onChange={handleProjectChange} placeholder="https://..." /> </div> </div>
-                    <div className="space-y-3 md:col-span-2 lg:col-span-1"> <div> <label htmlFor="project-tags" className="block text-sm font-medium mb-1">Tags (pisahkan koma)</label> <Input id="project-tags" name="tags" value={newProject.tags} onChange={handleProjectChange} placeholder="NextJs, Tailwind, Supabase" /> </div> <div> <label htmlFor="project-images-new" className="block text-sm font-medium mb-1">Gambar Proyek*</label> <Input id="project-images-new" name="image_files" type="file" multiple accept="image/*" onChange={handleNewProjectFilesChange} ref={newProjectFileInputRef} required className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"/> {newProjectFiles && <div className="text-xs text-muted-foreground mt-1">{Array.from(newProjectFiles).map(f => f.name).join(', ')}</div>} </div> <Button type="submit" size="sm" className="w-full mt-4" disabled={isProcessing || isUploadingCv}> {isProcessing ? 'Menyimpan...' : <><PlusCircle className="mr-2 h-4 w-4"/> Tambah Proyek</>} </Button> </div>
+                    <div className="space-y-3 md:col-span-2 lg:col-span-1"> <div> <label htmlFor="project-tags" className="block text-sm font-medium mb-1">Tags (pisahkan koma)</label> <Input id="project-tags" name="tags" value={newProject.tags} onChange={handleProjectChange} placeholder="NextJs, Tailwind, Supabase" /> </div> <div> <label htmlFor="project-images-new" className="block text-sm font-medium mb-1">Gambar Proyek*</label> <Input id="project-images-new" name="image_files" type="file" multiple accept="image/*" onChange={handleNewProjectFilesChange} ref={newProjectFileInputRef} required className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"/> {newProjectFiles && <div className="text-xs text-muted-foreground mt-1">{Array.from(newProjectFiles).map(f => f.name).join(', ')}</div>} </div> <div> <label htmlFor="project-video-new" className="block text-sm font-medium mb-1">Video Demo (opsional, mp4, maks 50MB)</label> <Input id="project-video-new" name="video_file" type="file" accept="video/mp4,video/webm,video/quicktime" onChange={(e) => setNewProjectVideo(e.target.files?.[0] ?? null)} ref={newProjectVideoInputRef} className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"/> {newProjectVideo && <div className="text-xs text-muted-foreground mt-1">{newProjectVideo.name} ({(newProjectVideo.size / 1024 / 1024).toFixed(1)}MB)</div>} </div> <Button type="submit" size="sm" className="w-full mt-4" disabled={isProcessing || isUploadingCv}> {isProcessing ? 'Menyimpan...' : <><PlusCircle className="mr-2 h-4 w-4"/> Tambah Proyek</>} </Button> </div>
                 </form>
                 {/* Tabel Proyek */}
                 <div className="overflow-x-auto">
@@ -279,7 +316,7 @@ export default function PortfolioAdminPage() {
              <Dialog open={isCategoryDialogOpen} onOpenChange={(open) => { if (!open) setEditingCategory(null); setIsCategoryDialogOpen(open); }}> <DialogContent className="sm:max-w-[425px]"> <DialogHeader> <DialogTitle>Edit Category</DialogTitle> <DialogDescription> Make changes to your category here. Click save when you're done. </DialogDescription> </DialogHeader> {editingCategory && ( <form onSubmit={handleUpdateCategory} className="grid gap-4 py-4"> <div className="grid grid-cols-4 items-center gap-4"> <Label htmlFor="edit-category-name" className="text-right">Name*</Label> <Input id="edit-category-name" name="name" value={editingCategory.name} onChange={handleEditCategoryChange} className="col-span-3" required /> </div> <div className="grid grid-cols-4 items-center gap-4"> <Label htmlFor="edit-category-icon" className="text-right">Icon Name*</Label> <Select name="icon_name_select" onValueChange={handleEditCategoryIconSelect} value={editingCategory.icon_name} > <SelectTrigger id="edit-category-icon" className="col-span-3"> <SelectValue placeholder="Pilih Ikon"/> </SelectTrigger> <SelectContent>{availableIcons.map(iconName=>(<SelectItem key={iconName} value={iconName}><div className="flex items-center gap-2">{React.createElement(iconMap[iconName]||DefaultIcon,{className:"h-4 w-4 opacity-70"})}{iconName}</div></SelectItem>))}</SelectContent> </Select> </div> <div className="grid grid-cols-4 items-center gap-4"> <Label htmlFor="edit-category-order" className="text-right">Order</Label> <Input id="edit-category-order" name="order" type="number" value={editingCategory.order ?? ''} onChange={handleEditCategoryChange} className="col-span-3" placeholder="10"/> </div> <div className="grid grid-cols-4 items-center gap-4"> <Label htmlFor="edit-category-content" className="text-right">Description</Label> <Textarea id="edit-category-content" name="content" value={editingCategory.content ?? ''} onChange={handleEditCategoryChange} className="col-span-3" placeholder="Category description..." /> </div> <DialogFooter> <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose> <Button type="submit" disabled={isProcessing}><Save className="mr-2 h-4 w-4" /> {isProcessing ? 'Saving...' : 'Save Changes'}</Button> </DialogFooter> </form> )} </DialogContent> </Dialog>
 
              {/* === Dialog Edit Proyek === */}
-             <Dialog open={isProjectDialogOpen} onOpenChange={(open) => { if (!open) { setEditingProject(null); setEditProjectFiles(null); setImagesToRemove([]); } setIsProjectDialogOpen(open); }}>
+             <Dialog open={isProjectDialogOpen} onOpenChange={(open) => { if (!open) { setEditingProject(null); setEditProjectFiles(null); setImagesToRemove([]); setEditProjectVideo(null); setRemoveVideo(false); } setIsProjectDialogOpen(open); }}>
                 <DialogContent className="sm:max-w-[600px]">
                     <DialogHeader> <DialogTitle>Edit Project</DialogTitle> <DialogDescription> Make changes to your project here. Click save when you're done. Uploading new images will replace existing ones. </DialogDescription> </DialogHeader>
                     {editingProject && (
@@ -288,6 +325,18 @@ export default function PortfolioAdminPage() {
                             <div className="space-y-4"> <div><Label htmlFor="edit-project-title">Title*</Label><Input id="edit-project-title" name="title" value={editingProject.title} onChange={handleEditProjectChange} required /></div> <div><Label htmlFor="edit-project-category">Category*</Label><Select name="category_id" onValueChange={handleEditProjectCategorySelect} value={editingProject.category_id} required><SelectTrigger id="edit-project-category"><SelectValue placeholder="Pilih Kategori"/></SelectTrigger><SelectContent>{categories.map(cat=>(<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}</SelectContent></Select></div> <div><Label htmlFor="edit-project-order">Order</Label><Input id="edit-project-order" name="order" type="number" value={editingProject.order ?? ''} onChange={handleEditProjectChange} placeholder="10"/></div> <div><Label htmlFor="edit-project-link">Link URL</Label><Input id="edit-project-link" name="link_url" type="url" value={editingProject.link_url ?? ''} onChange={handleEditProjectChange} placeholder="https://..."/></div> </div>
                              {/* Kolom 2 */}
                              <div className="space-y-4"> <div><Label htmlFor="edit-project-desc">Description</Label><Textarea id="edit-project-desc" name="description" value={editingProject.description ?? ''} onChange={handleEditProjectChange} placeholder="Project description..." rows={3}/></div> <div><Label htmlFor="edit-project-tags">Tags (comma-separated)</Label><Textarea id="edit-project-tags" name="tags" value={editingProject.tags as string} onChange={handleEditProjectChange} placeholder="tag1, tag2, tag3" rows={2}/></div>
+                                 {/* Video demo */}
+                                 <div className="space-y-2 rounded-md border p-3">
+                                     <Label className="text-sm font-medium">Video Demo</Label>
+                                     {editingProject.video_url ? (
+                                         <div className="flex items-center justify-between gap-2 text-xs">
+                                             <a href={editingProject.video_url} target="_blank" rel="noopener noreferrer" className={cn("truncate break-all text-blue-500 hover:underline", removeVideo && "line-through text-muted-foreground italic pointer-events-none")}>{editingProject.video_url.substring(editingProject.video_url.lastIndexOf('/') + 1)}</a>
+                                             <Button type="button" variant="ghost" size="icon" className={cn("h-5 w-5 flex-shrink-0", removeVideo ? "text-amber-600" : "text-destructive")} onClick={() => setRemoveVideo(v => !v)} title={removeVideo ? "Batalkan hapus" : "Hapus video"}>{removeVideo ? <Undo2 className="h-3.5 w-3.5"/> : <Trash2 className="h-3.5 w-3.5"/>}</Button>
+                                         </div>
+                                     ) : <p className="text-xs text-muted-foreground italic">Belum ada video.</p>}
+                                     <Input id="project-video-edit" name="video_file" type="file" accept="video/mp4,video/webm,video/quicktime" onChange={(e) => setEditProjectVideo(e.target.files?.[0] ?? null)} ref={editProjectVideoInputRef} className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 text-xs h-9"/>
+                                     {editProjectVideo && <div className="text-xs text-muted-foreground">Video baru: {editProjectVideo.name} ({(editProjectVideo.size / 1024 / 1024).toFixed(1)}MB), menggantikan yang lama.</div>}
+                                 </div>
                                  {/* Input File Gambar Edit & Daftar Gambar Lama */}
                                  <div className="space-y-2">
                                      <Label className="text-sm font-medium">Manage Images</Label>

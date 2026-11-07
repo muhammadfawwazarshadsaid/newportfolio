@@ -15,6 +15,7 @@ import {
   Globe,
   HelpCircle,
   X as XIcon, // Untuk tombol close modal gambar
+  PlayCircle,
   ZoomIn as ZoomInIcon, // Indikator zoom pada gambar (mengganti ZoomInIcon karena ZoomInIcon tidak ada di lucide-react standar, mungkin ZoomIn)
   Maximize2 as ExpandIcon, // Untuk "Baca selengkapnya" (alternatif: ChevronsUpDown, PlusSquare)
   Minimize2 as ShrinkIcon, // Untuk "Lebih sedikit" (alternatif: ChevronsDownUp, MinusSquare)
@@ -160,6 +161,7 @@ export function SettingsDialog() {
             tags: p.tags || [],
             linkUrl: p.link_url || undefined,
             imageUrls: p.image_urls || [],
+            videoUrl: p.video_url || undefined,
           }));
           const IconComponent = iconMap[category.icon_name] || DefaultIcon;
           return { id: category.id, name: category.name, icon: IconComponent, content: category.content || '', details: categoryProjects };
@@ -375,6 +377,25 @@ export function SettingsDialog() {
             </div>
           )}
 
+          {/* --- VIDEO DEMO --- */}
+          {selectedDetail.videoUrl && (
+            <div className="mt-4 mb-4">
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <PlayCircle className="h-4 w-4" /> Video Demo
+              </p>
+              <div className="flex justify-center rounded-2xl bg-muted/40 p-2 sm:p-3">
+                <video
+                  key={selectedDetail.videoUrl}
+                  src={`${selectedDetail.videoUrl}#t=0.001`}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  aria-label={`Video demo ${selectedDetail.title}`}
+                  className="block max-h-[70vh] max-w-full rounded-xl bg-black"
+                />
+              </div>
+            </div>
+          )}
           {/* --- MODIFIED IMAGE RENDERING SECTION --- */}
           {(() => {
             const imageUrls = selectedDetail.imageUrls || [];
@@ -473,6 +494,11 @@ export function SettingsDialog() {
                       <div className="flex h-full w-full items-center justify-center">
                         <PictureInPictureIcon className="h-12 w-12 text-muted-foreground/30" />
                       </div>
+                    )}
+                    {detail.videoUrl && (
+                      <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] font-medium text-white backdrop-blur">
+                        <PlayCircle className="h-3.5 w-3.5" /> Video
+                      </span>
                     )}
                   </div>
                   <div className="p-3 flex-1 flex flex-col justify-between">

@@ -20,6 +20,7 @@ export interface ProjectFromDB {
   tags: string[] | null; // Array teks di DB bisa null
   link_url: string | null;
   image_urls: string[] | null; // Array teks di DB bisa null
+  video_url: string | null; // URL video demo (opsional)
   order: number | null; // Kolom order
   created_at: string;
   // Properti ini ditambahkan saat join di Supabase query
@@ -47,6 +48,7 @@ export interface ProjectDetail {
     tags: string[];      // Di frontend, kita pastikan array (bisa kosong)
     linkUrl?: string;     // Opsional
     imageUrls: string[];   // Di frontend, kita pastikan array (bisa kosong)
+    videoUrl?: string;     // Video demo (opsional)
 }
 
 // Tipe untuk kategori yang siap ditampilkan (dengan komponen ikon & detail)
