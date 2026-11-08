@@ -10,7 +10,7 @@ select
   'MauSplit: Split Bill + Bot WhatsApp',
   E'Web app dan bot WhatsApp buat bagi tagihan bareng teman.\n\nKirim foto struk ke grup dengan /split, struk dibaca otomatis dengan OCR, tagihan dibagi per item (pajak dan service ikut dibagi proporsional), teman kirim bukti transfer lewat web atau chat, lalu bot mengumumkan kalau sudah lunas. Kalau ada yang salah, teman bisa lapor dan yang nalangin tinggal edit.\n\nGw bikin end to end: desain, frontend, backend, OCR, bot WhatsApp, dan deploy ke VPS pakai Docker.',
   array['Next.js','TypeScript','Tailwind','EasyOCR','FastAPI','Baileys','Docker','SQLite'],
-  null,
+  '/projects/mausplit/deck.pdf',
   array['/projects/mausplit/cover.png','/projects/mausplit/chat-grup.png','/projects/mausplit/bagi-per-item.png','/projects/mausplit/cek-bukti.png','/projects/mausplit/kartu-bot.png'],
   '/projects/mausplit/demo.mp4',
   0

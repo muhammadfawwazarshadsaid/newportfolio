@@ -372,7 +372,7 @@ export function SettingsDialog() {
                 )}
               >
                 <Globe className="h-4 w-4" />
-                <span>Lihat Tautan</span>
+                <span>{selectedDetail.linkUrl.toLowerCase().endsWith('.pdf') ? 'Lihat Deck (PDF)' : 'Lihat Tautan'}</span>
               </a>
             </div>
           )}
