@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion, useMotionTemplate, useMotionValue, useSpring } from 'framer-motion';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -45,30 +45,180 @@ const dialogItemVariants = { hidden: { opacity: 0, y: 15 }, visible: { opacity: 
 
 // --- Konstanta ---
 const DESCRIPTION_TRUNCATE_LENGTH = 180; // Sesuaikan panjang pemotongan deskripsi
+// Kartu kategori di hero memakai event ini untuk membuka portofolio pada kategori tersebut.
+export const OPEN_PORTFOLIO_EVENT = 'open-portfolio';
+const VIDEO_PREVIEW_START = 8; // detik; melewati kartu judul di awal video
+const viewVariants = {
+  hidden: { opacity: 0, y: 14 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' as const, staggerChildren: 0.06 } },
+  exit: { opacity: 0, y: -8, transition: { duration: 0.14, ease: 'easeIn' as const } },
+};
+const viewItemVariants = { hidden: { opacity: 0, y: 14 }, visible: { opacity: 1, y: 0, transition: { duration: 0.34, ease: 'easeOut' as const } } };
+
+// ==================================
+// === KARTU PROYEK ===
+// ==================================
+function ProjectCard({ detail, index, onOpen }: { detail: ProjectDetail; index: number; onOpen: () => void }) {
+  const coverUrl = detail.imageUrls?.[0];
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const progressRef = React.useRef<HTMLDivElement>(null);
+  const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showVideo, setShowVideo] = React.useState(false); // video baru dimuat setelah ada niat hover
+  const [playing, setPlaying] = React.useState(false);
+
+  const rotateX = useSpring(0, { stiffness: 220, damping: 20 });
+  const rotateY = useSpring(0, { stiffness: 220, damping: 20 });
+  const glareX = useMotionValue(50);
+  const glareY = useMotionValue(50);
+  const glare = useMotionTemplate`radial-gradient(320px circle at ${glareX}% ${glareY}%, rgba(255,255,255,0.13), transparent 65%)`;
+
+  const canHover = () => window.matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches;
+
+  const handleMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'mouse' || !canHover()) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width;
+    const py = (e.clientY - r.top) / r.height;
+    rotateY.set((px - 0.5) * 7);
+    rotateX.set((py - 0.5) * -7);
+    glareX.set(px * 100);
+    glareY.set(py * 100);
+  };
+  const handleEnter = () => {
+    if (!detail.videoUrl || !canHover()) return;
+    hoverTimer.current = setTimeout(() => setShowVideo(true), 160);
+    const v = videoRef.current;
+    if (v) v.play().catch(() => {});
+  };
+  const handleLeave = () => {
+    rotateX.set(0);
+    rotateY.set(0);
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setPlaying(false);
+    videoRef.current?.pause();
+  };
+  React.useEffect(() => () => { if (hoverTimer.current) clearTimeout(hoverTimer.current); }, []);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 22, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 190, damping: 20, delay: Math.min(index, 8) * 0.05 }}
+      style={{ rotateX, rotateY, transformPerspective: 900 }}
+      whileTap={{ scale: 0.985 }}
+      className={cn(
+        "bg-transparent", "border border-border/40", "rounded-2xl",
+        "cursor-pointer", "hover:border-border/80 hover:shadow-2xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background outline-none",
+        "transition-[border-color,box-shadow] duration-300", "group relative flex flex-col overflow-hidden"
+      )}
+      onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
+      onPointerMove={handleMove}
+      onPointerEnter={handleEnter}
+      onPointerLeave={handleLeave}
+      role="button"
+      tabIndex={0}
+      aria-label={`Lihat detail untuk ${detail.title}`}
+    >
+      <motion.div aria-hidden className="pointer-events-none absolute inset-0 z-20 opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ background: glare }} />
+      <div className="relative w-full aspect-video overflow-hidden bg-muted/60">
+        {coverUrl ? (
+          <Image
+            src={coverUrl}
+            alt={`Sampul untuk ${detail.title}`}
+            fill
+            className="object-cover transition-transform duration-500 ease-out group-hover:scale-105 group-focus-visible:scale-105"
+            sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <PictureInPictureIcon className="h-12 w-12 text-muted-foreground/30" />
+          </div>
+        )}
+        {showVideo && detail.videoUrl && (
+          <video
+            ref={videoRef}
+            src={detail.videoUrl}
+            muted
+            loop
+            playsInline
+            autoPlay
+            preload="auto"
+            aria-hidden
+            tabIndex={-1}
+            onLoadedMetadata={(e) => { if (e.currentTarget.duration > VIDEO_PREVIEW_START * 2) e.currentTarget.currentTime = VIDEO_PREVIEW_START; }}
+            onPlaying={() => setPlaying(true)}
+            onTimeUpdate={(e) => {
+              const v = e.currentTarget;
+              if (progressRef.current && v.duration) progressRef.current.style.transform = `scaleX(${v.currentTime / v.duration})`;
+            }}
+            className={cn('absolute inset-0 h-full w-full object-cover transition-opacity duration-300', playing ? 'opacity-100' : 'opacity-0')}
+          />
+        )}
+        {detail.videoUrl && (
+          <span className="absolute bottom-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] font-medium text-white backdrop-blur">
+            <PlayCircle className="h-3.5 w-3.5" /> {playing ? 'Memutar' : 'Video'}
+          </span>
+        )}
+        {detail.videoUrl && (
+          <div className={cn('absolute inset-x-0 bottom-0 z-10 h-0.5 transition-opacity duration-300', playing ? 'opacity-100' : 'opacity-0')}>
+            <div ref={progressRef} className="h-full origin-left scale-x-0 bg-white" />
+          </div>
+        )}
+      </div>
+      <div className="p-3 flex-1 flex flex-col justify-between">
+        <div>
+          <h3 className="font-semibold mb-1 truncate group-hover:text-primary transition-colors duration-200">{detail.title}</h3>
+          {detail.description && <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{detail.description}</p>}
+        </div>
+        <p className="text-xs text-primary/80 group-hover:text-primary flex items-center mt-1 self-end transition-colors duration-200">
+          Lihat Detail
+          <ChevronRight className="h-3 w-3 ml-0.5 -translate-x-1 opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100" />
+        </p>
+      </div>
+    </motion.div>
+  );
+}
+
 // ==================================
 // === KOMPONEN IMAGE ZOOM MODAL ===
 // ==================================
 interface ImageZoomModalProps {
   imageUrl: string | null;
   altText: string;
+  images: string[];
+  onNavigate: (url: string) => void;
   onClose: () => void;
 }
 
-function ImageZoomModal({ imageUrl, altText, onClose }: ImageZoomModalProps) {
-  if (!imageUrl) return null;
+function ImageZoomModal({ imageUrl, altText, images, onNavigate, onClose }: ImageZoomModalProps) {
+  const position = imageUrl ? images.indexOf(imageUrl) : -1;
+  const hasGallery = images.length > 1 && position >= 0;
+  const [direction, setDirection] = React.useState(1);
+  const step = React.useCallback((by: number) => {
+    if (!hasGallery) return;
+    setDirection(by);
+    onNavigate(images[(position + by + images.length) % images.length]);
+  }, [hasGallery, images, position, onNavigate]);
 
   // Menangani event Escape key untuk menutup modal
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
+      } else if (event.key === "ArrowRight") {
+        step(1);
+      } else if (event.key === "ArrowLeft") {
+        step(-1);
       }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose]);
+  }, [onClose, step]);
+
+  if (!imageUrl) return null;
 
   return (
     <Dialog open={!!imageUrl} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
@@ -90,14 +240,32 @@ function ImageZoomModal({ imageUrl, altText, onClose }: ImageZoomModalProps) {
           transition={{ duration: 0.2, ease: "easeOut" }}
           className="relative group"
         >
-          <Image
-            src={imageUrl}
-            alt={altText} // This alt prop on Image is crucial for image accessibility
-            width={1600}
-            height={1000}
-            className="object-contain rounded-lg max-w-[calc(90vw-2rem)] max-h-[calc(90vh-5rem)]"
-            priority // Consider if 'priority' is needed here, as modal content isn't typically LCP.
-          />
+          <AnimatePresence mode="popLayout" initial={false} custom={direction}>
+            <motion.div
+              key={imageUrl}
+              custom={direction}
+              initial={{ opacity: 0, x: direction * 60, scale: 0.98 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: direction * -60, scale: 0.98 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+            >
+              <Image
+                src={imageUrl}
+                alt={altText} // This alt prop on Image is crucial for image accessibility
+                width={1600}
+                height={1000}
+                className="object-contain rounded-lg max-w-[calc(90vw-2rem)] max-h-[calc(90vh-5rem)]"
+                priority // Consider if 'priority' is needed here, as modal content isn't typically LCP.
+              />
+            </motion.div>
+          </AnimatePresence>
+          {hasGallery && (
+            <>
+              <Button variant="ghost" size="icon" aria-label="Gambar sebelumnya" onClick={() => step(-1)} className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/60 text-white backdrop-blur-sm hover:bg-black/80 hover:text-white"><ChevronLeft className="h-5 w-5" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Gambar berikutnya" onClick={() => step(1)} className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/60 text-white backdrop-blur-sm hover:bg-black/80 hover:text-white"><ChevronRight className="h-5 w-5" /></Button>
+              <span className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs font-medium tabular-nums text-white backdrop-blur-sm">{position + 1} / {images.length}</span>
+            </>
+          )}
           {/* The <p id...> for sr-only description is now handled by DialogDescription */}
           <DialogClose
             asChild
@@ -135,7 +303,25 @@ export function SettingsDialog() {
   const [hasFetched, setHasFetched] = React.useState(false);
 
   const supabase = React.useMemo(() => createClient(), []);
+  const contentRef = React.useRef<HTMLDivElement>(null);
   // --- End State ---
+
+  // Kartu kategori di hero membuka dialog langsung pada kategorinya.
+  React.useEffect(() => {
+    const onOpenRequest = (e: Event) => {
+      const category = (e as CustomEvent<string>).detail;
+      if (category) setActiveMenu(category);
+      setSelectedDetail(null);
+      setOpen(true);
+    };
+    window.addEventListener(OPEN_PORTFOLIO_EVENT, onOpenRequest);
+    return () => window.removeEventListener(OPEN_PORTFOLIO_EVENT, onOpenRequest);
+  }, []);
+
+  // Pindah kategori atau buka detail selalu mulai dari atas.
+  React.useEffect(() => {
+    contentRef.current?.parentElement?.scrollTo({ top: 0 });
+  }, [activeMenu, selectedDetail]);
 
   // --- Data Fetching ---
   React.useEffect(() => {
@@ -316,17 +502,18 @@ export function SettingsDialog() {
   );
 
   const renderContent = () => (
-    <div className="p-4 pt-4">
+    <div ref={contentRef} className="p-4 pt-4">
+      <AnimatePresence mode="wait" initial={false}>
       {selectedDetail ? (
-        <div>
-          <button onClick={handleBackClick} className="flex items-center gap-1 mb-4 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" />
+        <motion.div key={`detail-${selectedDetail.title}`} variants={viewVariants} initial="hidden" animate="visible" exit="exit">
+          <motion.button variants={viewItemVariants} onClick={handleBackClick} className="group/back flex items-center gap-1 mb-4 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4 transition-transform duration-200 group-hover/back:-translate-x-1" />
             <span>Kembali ke {activeMenu}</span>
-          </button>
-          <h2 className="text-xl font-semibold mb-2">{selectedDetail.title}</h2>
+          </motion.button>
+          <motion.h2 variants={viewItemVariants} className="text-xl font-semibold mb-2">{selectedDetail.title}</motion.h2>
 
           {/* --- MODIFIED DESCRIPTION SECTION --- */}
-          <div className="text-muted-foreground mb-4">
+          <motion.div variants={viewItemVariants} className="text-muted-foreground mb-4">
             <p className="whitespace-pre-line">
               {isDescriptionExpanded || selectedDetail.description.length <= DESCRIPTION_TRUNCATE_LENGTH
                 ? selectedDetail.description
@@ -345,18 +532,18 @@ export function SettingsDialog() {
                 {isDescriptionExpanded ? <ShrinkIcon className="h-3.5 w-3.5" /> : <ExpandIcon className="h-3.5 w-3.5" />}
               </Button>
             )}
-          </div>
+          </motion.div>
           <div id={`project-description-${selectedDetail.title.replace(/\s+/g, '-')}`} className="sr-only">
             {selectedDetail.description}
           </div>
           {/* --- END MODIFIED DESCRIPTION SECTION --- */}
 
           {selectedDetail.tags && selectedDetail.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
+            <motion.div variants={viewItemVariants} className="flex flex-wrap gap-2 mb-4">
               {selectedDetail.tags.map((tag: string, index: number) => (
-                <Badge key={index} variant="secondary" className="rounded-full">{tag}</Badge>
+                <Badge key={index} variant="secondary" className="rounded-full transition-transform duration-200 hover:-translate-y-0.5">{tag}</Badge>
               ))}
-            </div>
+            </motion.div>
           )}
           {selectedDetail.linkUrl && (
             <div className="mt-4 mb-4">
@@ -379,7 +566,7 @@ export function SettingsDialog() {
 
           {/* --- VIDEO DEMO --- */}
           {selectedDetail.videoUrl && (
-            <div className="mt-4 mb-4">
+            <motion.div variants={viewItemVariants} className="mt-4 mb-4">
               <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 <PlayCircle className="h-4 w-4" /> Video Demo
               </p>
@@ -394,7 +581,7 @@ export function SettingsDialog() {
                   className="block max-h-[70vh] max-w-full rounded-xl bg-black"
                 />
               </div>
-            </div>
+            </motion.div>
           )}
           {/* --- MODIFIED IMAGE RENDERING SECTION --- */}
           {(() => {
@@ -402,7 +589,7 @@ export function SettingsDialog() {
             const imageCount = imageUrls.length;
             if (imageCount === 0) return null;
 
-            const renderImageTile = (url: string, altText: string, priority = false, sizes: string, key?: string | number, className?: string) => (
+            const renderImageTile = (url: string, altText: string, priority = false, sizes: string, key?: string | number, className?: string, moreCount = 0) => (
               <div
                 key={key}
                 className={cn(
@@ -426,6 +613,9 @@ export function SettingsDialog() {
                 <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 flex items-center justify-center transition-all duration-300 backdrop-blur-[2px]">
                   <ZoomInIcon className="h-8 w-8 text-white drop-shadow-lg" />
                 </div>
+                {moreCount > 0 && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-2xl font-semibold text-white">+{moreCount}</div>
+                )}
               </div>
             );
 
@@ -448,80 +638,29 @@ export function SettingsDialog() {
             // Untuk 3 gambar atau lebih, tampilkan layout yang berbeda
             if (imageCount >= 3) {
               return (
-                <div className="mt-4 mb-4 grid grid-cols-2 gap-2">
+                <motion.div variants={viewItemVariants} className="mt-4 mb-4 grid grid-cols-2 gap-2">
                   {renderImageTile(imageUrls[0], `Gambar proyek 1 untuk ${selectedDetail.title}`, true, "(max-width: 768px) 100vw, (min-width: 769px) 50vw", "img-0", "col-span-2")}
                   {imageUrls[1] && renderImageTile(imageUrls[1], `Gambar proyek 2 untuk ${selectedDetail.title}`, false, "(max-width: 768px) 50vw, 25vw", "img-1", "col-span-1")}
-                  {imageUrls[2] && renderImageTile(imageUrls[2], `Gambar proyek 3 untuk ${selectedDetail.title}`, false, "(max-width: 768px) 50vw, 25vw", "img-2", "col-span-1")}
-                  {/* Anda bisa menambahkan logika untuk menampilkan lebih dari 3 gambar jika diperlukan */}
-                </div>
+                  {imageUrls[2] && renderImageTile(imageUrls[2], `Gambar proyek 3 untuk ${selectedDetail.title}`, false, "(max-width: 768px) 50vw, 25vw", "img-2", "col-span-1", imageCount - 3)}
+                </motion.div>
               );
             }
             return null;
           })()}
           {/* --- END MODIFIED IMAGE RENDERING SECTION --- */}
 
-        </div>
+        </motion.div>
       ) : ( // Jika tidak ada selectedDetail (tampilan daftar proyek per kategori)
-        <div className="space-y-4">
+        <motion.div key={`list-${activeMenu}`} className="space-y-4" variants={viewVariants} initial="hidden" animate="visible" exit="exit">
           <p className="text-muted-foreground">{getActiveContent()}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-            {getActiveDetails().map((detail, i) => {
-              const coverUrl = detail.imageUrls?.[0];
-              return (
-                <div
-                  key={detail.title + i}
-                  className={cn(
-                    "bg-transparent", "border border-border/40", "rounded-2xl",
-                    "cursor-pointer", "hover:border-border/80 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background outline-none",
-                    "transition-all duration-300", "group flex flex-col overflow-hidden"
-                  )}
-                  onClick={() => handleDetailClick(detail)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleDetailClick(detail); } }}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Lihat detail untuk ${detail.title}`}
-                >
-                  <div className="relative w-full aspect-video bg-muted/60">
-                    {coverUrl ? (
-                      <Image
-                        src={coverUrl}
-                        alt={`Sampul untuk ${detail.title}`}
-                        fill
-                        className="object-cover transition-transform duration-300 ease-in-out group-hover:scale-105 group-focus-visible:scale-105"
-                        sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw" // Disesuaikan untuk grid 2 kolom
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center">
-                        <PictureInPictureIcon className="h-12 w-12 text-muted-foreground/30" />
-                      </div>
-                    )}
-                    {detail.videoUrl && (
-                      <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] font-medium text-white backdrop-blur">
-                        <PlayCircle className="h-3.5 w-3.5" /> Video
-                      </span>
-                    )}
-                  </div>
-                  <div className="p-3 flex-1 flex flex-col justify-between">
-                    <div>
-                        <h3 className="font-semibold mb-1 truncate group-hover:text-primary transition-colors duration-200">{detail.title}</h3>
-                        {/* Potongan kecil dari deskripsi jika ada */}
-                        {detail.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
-                                {detail.description}
-                            </p>
-                        )}
-                    </div>
-                    <p className="text-xs text-primary/80 group-hover:text-primary flex items-center mt-1 self-end transition-colors duration-200">
-                      Lihat Detail
-                      <ChevronRight className="h-3 w-3 ml-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+            {getActiveDetails().map((detail, i) => (
+              <ProjectCard key={detail.title + i} detail={detail} index={i} onOpen={() => handleDetailClick(detail)} />
+            ))}
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 
@@ -530,9 +669,9 @@ export function SettingsDialog() {
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="default" className="h-12 w-44 rounded-full" aria-label="Lihat Portofolio">
+          <Button variant="default" className="btn-shine group h-12 w-44 rounded-full" aria-label="Lihat Portofolio">
             See Portfolio
-            <ArrowUpRight className="h-5 w-5 ml-1" />
+            <ArrowUpRight className="h-5 w-5 ml-1 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </Button>
         </DialogTrigger>
         <DialogContent className="overflow-hidden p-0 rounded-lg md:max-h-[calc(100vh-4rem)] md:max-w-[700px] lg:max-w-[850px] mt-8 mb-8 flex flex-col h-screen md:h-auto">
@@ -619,6 +758,8 @@ export function SettingsDialog() {
       <ImageZoomModal
         imageUrl={zoomedImageUrl}
         altText={zoomedImageAlt}
+        images={selectedDetail?.imageUrls ?? []}
+        onNavigate={setZoomedImageUrl}
         onClose={handleCloseZoomModal}
       />
     </>
